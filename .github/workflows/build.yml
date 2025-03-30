@@ -1,4 +1,4 @@
-name: Build OpenCV Windows Variants
+name: Build OpenCV
 
 on:
   workflow_dispatch:
@@ -14,16 +14,16 @@ jobs:
       matrix:
         include:
           # MT Static
-          - { arch: Win32, config: Release, shared: OFF, runtime: MultiThreaded,    suffix: win32-static-release }
-          - { arch: x64,   config: Release, shared: OFF, runtime: MultiThreaded,    suffix: x64-static-release }
-          - { arch: Win32, config: Debug,   shared: OFF, runtime: MultiThreadedDebug, suffix: win32-static-debug }
-          - { arch: x64,   config: Debug,   shared: OFF, runtime: MultiThreadedDebug, suffix: x64-static-debug }
+          - { arch: Win32, config: Release, shared: OFF, runtime: MultiThreaded, suffix: win32-static-release }
+          - { arch: x64, config: Release, shared: OFF, runtime: MultiThreaded, suffix: x64-static-release }
+          - { arch: Win32, config: Debug, shared: OFF, runtime: MultiThreadedDebug, suffix: win32-static-debug }
+          - { arch: x64, config: Debug, shared: OFF, runtime: MultiThreadedDebug, suffix: x64-static-debug }
           
           # MD Dynamic
-          - { arch: Win32, config: Release, shared: ON,  runtime: MultiThreadedDLL, suffix: win32-dynamic-release }
-          - { arch: x64,   config: Release, shared: ON,  runtime: MultiThreadedDLL, suffix: x64-dynamic-release }
-          - { arch: Win32, config: Debug,   shared: ON,  runtime: MultiThreadedDebugDLL, suffix: win32-dynamic-debug }
-          - { arch: x64,   config: Debug,   shared: ON,  runtime: MultiThreadedDebugDLL, suffix: x64-dynamic-debug }
+          - { arch: Win32, config: Release, shared: ON, runtime: MultiThreadedDLL, suffix: win32-dynamic-release }
+          - { arch: x64, config: Release, shared: ON, runtime: MultiThreadedDLL, suffix: x64-dynamic-release }
+          - { arch: Win32, config: Debug, shared: ON, runtime: MultiThreadedDebugDLL, suffix: win32-dynamic-debug }
+          - { arch: x64, config: Debug, shared: ON, runtime: MultiThreadedDebugDLL, suffix: x64-dynamic-debug }
 
     runs-on: windows-latest
 
@@ -39,8 +39,7 @@ jobs:
     - name: Setup Build Tools
       uses: microsoft/setup-msbuild@v1
 
-    - name: Get specific version CMake, v3.24.3
-      if: runner.os == 'Windows'
+    - name: Get CMake 3.24.3
       uses: lukka/get-cmake@v3.24.3
 
     - name: Create Build Directory
@@ -73,7 +72,7 @@ jobs:
         -DOPENCV_FORCE_3RDPARTY_BUILD=ON ^
         -DOPENCV_DISABLE_THIRD_PARTY_LICENSES=ON ^
         -DBUILD_opencv_world=ON ^
-        -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install/${{ matrix.suffix }}"
+        -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}\install\${{ matrix.suffix }}"
 
     - name: Build & Install
       shell: cmd
@@ -84,37 +83,38 @@ jobs:
     - name: Package Artifacts (ZIP)
       shell: cmd
       run: |
-        7z a -tzip opencv_${{ matrix.suffix }}.zip ./install/${{ matrix.suffix }}/*
-      working-directory: ${{ github.workspace }}
-    
+        7z a -tzip "${{ github.workspace }}\opencv_${{ matrix.suffix }}.zip" "${{ github.workspace }}\install\${{ matrix.suffix }}\*"
+
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: opencv_${{ matrix.suffix }}                             # Artifact名称
-        path: ${{ github.workspace }}/opencv_${{ matrix.suffix }}.zip # 要上传的文件路径
+        name: opencv_${{ matrix.suffix }}
+        path: ${{ github.workspace }}\opencv_${{ matrix.suffix }}.zip
+        retention-days: 1
 
   release:
     needs: build
     runs-on: windows-latest
     permissions:
       contents: write
-    steps:
-      - name: Download All Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          name: opencv_${{ matrix.suffix }}.zip
-          path: ${{ github.workspace }}/artifacts/       # 指定下载文件路径
 
-      - name: Check Files
-        run: ls -R ${{ github.workspace }}/artifacts/
-      
-      - name: Create Release
-        uses: softprops/action-gh-release@v1
-        with:
-          tag_name: opencv-${{ env.OPENCV_VER }}-windows
-          files: |
-            ${{ github.workspace }}/artifacts/*.zip
-          token: ${{ secrets.GITHUB_TOKEN }}
-          draft: false
-          prerelease: false
-          overwrite: true  # 允许覆盖现有release
+    steps:
+    - name: Download All Artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: ${{ github.workspace }}\artifacts
+
+    - name: List Downloaded Files
+      shell: cmd
+      run: dir /s /b "${{ github.workspace }}\artifacts"
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: opencv-${{ env.OPENCV_VER }}-windows
+        files: |
+          ${{ github.workspace }}\artifacts\opencv_*.zip
+        token: ${{ secrets.GITHUB_TOKEN }}
+        draft: false
+        prerelease: false
+        overwrite: true
