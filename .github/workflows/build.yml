@@ -1,0 +1,108 @@
+name: Build OpenCV Windows Variants
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ master ]
+
+env:
+  OPENCV_VER: 4.5.3
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          # MT Static
+          - { arch: Win32, config: Release, shared: OFF, runtime: MultiThreaded,    suffix: win32-static-release }
+          - { arch: x64,   config: Release, shared: OFF, runtime: MultiThreaded,    suffix: x64-static-release }
+          - { arch: Win32, config: Debug,   shared: OFF, runtime: MultiThreadedDebug, suffix: win32-static-debug }
+          - { arch: x64,   config: Debug,   shared: OFF, runtime: MultiThreadedDebug, suffix: x64-static-debug }
+          
+          # MD Dynamic
+          - { arch: Win32, config: Release, shared: ON,  runtime: MultiThreadedDLL, suffix: win32-dynamic-release }
+          - { arch: x64,   config: Release, shared: ON,  runtime: MultiThreadedDLL, suffix: x64-dynamic-release }
+          - { arch: Win32, config: Debug,   shared: ON,  runtime: MultiThreadedDebugDLL, suffix: win32-dynamic-debug }
+          - { arch: x64,   config: Debug,   shared: ON,  runtime: MultiThreadedDebugDLL, suffix: x64-dynamic-debug }
+
+    runs-on: windows-latest
+
+    steps:
+    - name: Checkout OpenCV
+      uses: actions/checkout@v4
+      with:
+        repository: opencv/opencv
+        ref: ${{ env.OPENCV_VER }}
+        submodules: recursive
+        path: opencv
+
+    - name: Setup Build Tools
+      uses: microsoft/setup-msbuild@v1
+
+    - name: Install CMake
+      uses: cmake-actions/setup-cmake@v1
+
+    - name: Create Build Directory
+      shell: cmd
+      run: mkdir build_${{ matrix.suffix }} && cd build_${{ matrix.suffix }}
+      working-directory: ./opencv
+
+    - name: CMake Configure
+      shell: cmd
+      working-directory: ./opencv/build_${{ matrix.suffix }}
+      run: |
+        cmake ../.. -G "Visual Studio 17 2022" -A ${{ matrix.arch }} ^
+        -DCMAKE_MSVC_RUNTIME_LIBRARY="${{ matrix.runtime }}" ^
+        -DBUILD_SHARED_LIBS=${{ matrix.shared }} ^
+        -DCMAKE_CONFIGURATION_TYPES="${{ matrix.config }}" ^
+        -DENABLE_CCACHE=ON ^
+        -DWITH_IPP=OFF ^
+        -DWITH_LAPACK=OFF ^
+        -DWITH_EIGEN=OFF ^
+        -DWITH_JPEG=ON ^
+        -DWITH_PNG=ON ^
+        -DWITH_PROTOBUF=OFF ^
+        -DWITH_TIFF=ON ^
+        -DBUILD_TESTS=OFF ^
+        -DBUILD_JAVA=OFF ^
+        -DBUILD_PERF_TESTS=OFF ^
+        -DBUILD_EXAMPLES=OFF ^
+        -DWITH_FFMPEG=OFF ^
+        -DOPENCV_FORCE_3RDPARTY_BUILD=ON ^
+        -DOPENCV_DISABLE_THIRD_PARTY_LICENSES=ON ^
+        -DBUILD_opencv_world=ON ^
+        -DCMAKE_INSTALL_PREFIX=../../install/${{ matrix.suffix }}
+
+    - name: Build & Install
+      shell: cmd
+      working-directory: ./opencv/build_${{ matrix.suffix }}
+      run: |
+        cmake --build . --config ${{ matrix.config }} --target INSTALL -- /m
+
+    - name: Package Artifacts (ZIP)
+      shell: cmd
+      run: |
+        7z a -tzip opencv_${{ matrix.suffix }}.zip .\install\${{ matrix.suffix }}\*
+      working-directory: ${{ github.workspace }}
+
+    - name: Upload Artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: opencv_${{ matrix.suffix }}
+        path: ${{ github.workspace }}\opencv_${{ matrix.suffix }}.zip
+
+  release:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Download All Artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: opencv-${{ env.OPENCV_VER }}-windows
+          files: |
+            artifacts/opencv_*.zip
