@@ -72,7 +72,7 @@ jobs:
         -DOPENCV_FORCE_3RDPARTY_BUILD=ON ^
         -DOPENCV_DISABLE_THIRD_PARTY_LICENSES=ON ^
         -DBUILD_opencv_world=ON ^
-        -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}\install\${{ matrix.suffix }}"
+        -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install/${{ matrix.suffix }}"
 
     - name: Build & Install
       shell: cmd
@@ -83,13 +83,13 @@ jobs:
     - name: Package Artifacts (ZIP)
       shell: cmd
       run: |
-        7z a -tzip "${{ github.workspace }}\opencv_${{ matrix.suffix }}.zip" "${{ github.workspace }}\install\${{ matrix.suffix }}\*"
+        7z a -tzip "${{ github.workspace }}/opencv_${{ matrix.suffix }}.zip" "${{ github.workspace }}/install/${{ matrix.suffix }}/*"
 
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
         name: opencv_${{ matrix.suffix }}
-        path: ${{ github.workspace }}\opencv_${{ matrix.suffix }}.zip
+        path: ${{ github.workspace }}/opencv_${{ matrix.suffix }}.zip
         retention-days: 1
 
   release:
@@ -102,16 +102,16 @@ jobs:
     - name: Download All Artifacts
       uses: actions/download-artifact@v4
       with:
-        path: ${{ github.workspace }}\artifacts
+        path: ${{ github.workspace }}/artifacts
 
     - name: List Downloaded Files
       shell: cmd
-      run: dir /s /b "${{ github.workspace }}\artifacts"
+      run: dir /s /b "${{ github.workspace }}/artifacts"
 
     - name: Create Release
       uses: softprops/action-gh-release@v1
       with:
         tag_name: opencv-${{ env.OPENCV_VER }}-windows
         files: |
-          ${{ github.workspace }}\artifacts\*\*.zip
+          ${{ github.workspace }}/artifacts/**/*.zip
         token: ${{ secrets.GITHUB_TOKEN }}
