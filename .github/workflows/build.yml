@@ -102,7 +102,7 @@ jobs:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
         with:
-          path: artifacts
+          path: ${{ github.workspace }}/artifacts
 
       - name: Create Release
         uses: softprops/action-gh-release@v1
