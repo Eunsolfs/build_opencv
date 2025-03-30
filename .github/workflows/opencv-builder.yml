@@ -1,6 +1,7 @@
 name: Build OpenCV Libraries
 
 on:
+  workflow_dispatch:
   push:
     branches: [ master ]
 
