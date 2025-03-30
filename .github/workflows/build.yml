@@ -84,18 +84,20 @@ jobs:
     - name: Package Artifacts (ZIP)
       shell: cmd
       run: |
-        7z a -tzip opencv_${{ matrix.suffix }}.zip .\install\${{ matrix.suffix }}\*
-      working-directory: ${{ github.workspace }}
-
+        7z a "${{ github.workspace }}/artifacts/opencv_${{ matrix.suffix }}.zip" "${{ github.workspace }}/install/${{ matrix.suffix }}/*"
+      # 确保输出到统一目录
+    
     - name: Upload Artifact
       uses: actions/upload-artifact@v4
       with:
-        name: opencv_${{ matrix.suffix }}
-        path: ${{ github.workspace }}\opencv_${{ matrix.suffix }}.zip
+        name: packages  # 统一artifact名称
+        path: ${{ github.workspace }}/artifacts/*.zip
 
   release:
     needs: build
     runs-on: windows-latest
+    permissions:
+      contents: write
     steps:
       - name: Download All Artifacts
         uses: actions/download-artifact@v4
@@ -107,4 +109,8 @@ jobs:
         with:
           tag_name: opencv-${{ env.OPENCV_VER }}-windows
           files: |
-            artifacts/opencv_*.zip
+            ${{ github.workspace }}/artifacts/*.zip
+          token: ${{ secrets.GITHUB_TOKEN }}
+          draft: false
+          prerelease: false
+          overwrite: true  # 允许覆盖现有release
