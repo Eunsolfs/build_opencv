@@ -6,7 +6,7 @@ on:
     branches: [ master ]
 
 env:
-  OPENCV_VER: 4.5.3
+  OPENCV_VER: 4.8.0
 
 jobs:
   build:
@@ -113,8 +113,5 @@ jobs:
       with:
         tag_name: opencv-${{ env.OPENCV_VER }}-windows
         files: |
-          ${{ github.workspace }}\artifacts\opencv_*.zip
+          ${{ github.workspace }}\artifacts\*\*.zip
         token: ${{ secrets.GITHUB_TOKEN }}
-        draft: false
-        prerelease: false
-        overwrite: true
