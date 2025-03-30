@@ -52,7 +52,8 @@ jobs:
       shell: cmd
       working-directory: ./opencv/build_${{ matrix.suffix }}
       run: |
-        cmake ../.. -G "Visual Studio 17 2022" -A ${{ matrix.arch }} ^
+        cmake -S .. -B . ^
+        -G "Visual Studio 17 2022" -A ${{ matrix.arch }} ^
         -DCMAKE_MSVC_RUNTIME_LIBRARY="${{ matrix.runtime }}" ^
         -DBUILD_SHARED_LIBS=${{ matrix.shared }} ^
         -DCMAKE_CONFIGURATION_TYPES="${{ matrix.config }}" ^
@@ -72,7 +73,7 @@ jobs:
         -DOPENCV_FORCE_3RDPARTY_BUILD=ON ^
         -DOPENCV_DISABLE_THIRD_PARTY_LICENSES=ON ^
         -DBUILD_opencv_world=ON ^
-        -DCMAKE_INSTALL_PREFIX=../../install/${{ matrix.suffix }}
+        -DCMAKE_INSTALL_PREFIX="${{ github.workspace }}/install/${{ matrix.suffix }}"
 
     - name: Build & Install
       shell: cmd
