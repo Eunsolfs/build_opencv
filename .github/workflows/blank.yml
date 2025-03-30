@@ -1,0 +1,129 @@
+name: Build OpenCV Libraries
+
+on:
+  push:
+    branches: [ master ]
+
+env:
+  OPENCV_REF: 4.5.3
+
+jobs:
+  build-opencv:
+
+    strategy:
+      matrix:
+        os: [windows]
+        include:
+          - os: windows
+            build_type: Release
+            static_libs: true
+          - os: windows
+            build_type: Debug
+            static_libs: true
+          - os: windows
+            build_type: Release
+            static_libs: false
+          - os: windows
+            build_type: Debug
+            static_libs: false
+
+    runs-on: ${{ matrix.os }}-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Setup MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+        id: msvc-env
+        if: runner.os == 'Windows'
+
+      - name: Install CMake
+        if: runner.os == 'Windows'
+        uses: lukka/get-cmake@v3.24.3
+
+      - name: Configure MSVC environment
+        if: steps.msvc-env.conclusion == 'success'
+        run: |
+          echo "CC=cl" >> $GITHUB_ENV
+          echo "CXX=cl" >> $GITHUB_ENV
+
+      - name: Clone OpenCV
+        uses: actions/checkout@v3
+        with:
+          repository: opencv/opencv
+          path: opencv
+          ref: ${{ env.OPENCV_REF }}
+
+      - name: Configure OpenCV
+        run: |
+            cd ${GITHUB_WORKSPACE}/opencv
+            mkdir build && cd build
+            cmake .. \
+              -DCMAKE_BUILD_TYPE=${{ matrix.build_type }} \
+              -DENABLE_CCACHE=ON \
+              -DBUILD_SHARED_LIBS=${{ matrix.static_libs }} \
+              -DWITH_IPP=OFF \
+              -DWITH_LAPACK=OFF \
+              -DWITH_EIGEN=OFF \
+              -DWITH_JPEG=ON \
+              -DWITH_PNG=ON \
+              -DWITH_PROTOBUF=OFF \
+              -DWITH_TIFF=ON \
+              -DBUILD_TESTS=OFF \
+              -DBUILD_JAVA=OFF \
+              -DBUILD_PERF_TESTS=OFF \
+              -DBUILD_EXAMPLES=OFF \
+              -DWITH_FFMPEG=OFF \
+              -DOPENCV_FORCE_3RDPARTY_BUILD=ON \
+              -DCMAKE_INSTALL_PREFIX=${GITHUB_WORKSPACE}/build/opencv \
+              -DBUILD_opencv_world=ON \
+              -DCMAKE_CXX_FLAGS="/MT"  # For static compile
+
+      - name: Build OpenCV
+        run: |
+            cd ${GITHUB_WORKSPACE}/opencv/build
+            cmake --build . --config ${{ matrix.build_type }} --target install --parallel ${PARALLEL_JOBS:-$(nproc --all)}
+
+      - name: Setup package name
+        run: |
+          PKG_SUFFIX=${{ runner.os }}-${{ matrix.build_type }}-${{ matrix.static_libs && 'MT' || 'MD' }}
+          echo "PKG_SUFFIX=${PKG_SUFFIX}" >> $GITHUB_ENV
+
+      - name: Package OpenCV
+        run: |
+            cd ${GITHUB_WORKSPACE}/build
+            tar -czvf OpenCV-${{ env.PKG_SUFFIX }}.tar.gz opencv
+
+      - name: Upload OpenCV
+        uses: actions/upload-artifact@v3
+        with:
+          name: opencv-${{ env.PKG_SUFFIX }}
+          path: build/OpenCV-${{ env.PKG_SUFFIX }}.tar.gz
+
+  upload-release:
+    needs: build-opencv
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Download Artifacts
+        uses: actions/download-artifact@v3
+        with:
+          path: download
+
+      - name: Move files
+        run: |
+            cd ${GITHUB_WORKSPACE}
+            mkdir release
+            mv download/*/* ${GITHUB_WORKSPACE}/release/
+            cd ${GITHUB_WORKSPACE}/release
+            sha256sum --tag * > ${GITHUB_WORKSPACE}/hashes.txt
+
+      - name: Upload Release
+        uses: softprops/action-gh-release@v1
+        with:
+          body_path: hashes.txt
+          tag_name: ${{ env.OPENCV_REF }}
+          files: |
+            release/*
